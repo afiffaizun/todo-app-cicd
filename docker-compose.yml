@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: todo-postgres-test
+    environment:
+      POSTGRES_USER: todouser
+      POSTGRES_PASSWORD: todopass
+      POSTGRES_DB: tododb
+    ports:
+      - "5432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    command: >
+      postgres
+      -c max_connections=20
+      -c shared_buffers=32MB
+      -c effective_cache_size=64MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=16MB
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c wal_buffers=1MB
+      -c log_statement=none

@@ -6,21 +6,28 @@ import (
 	"github.com/afiffaizun/todo-app-cicd/internal/handler"
 	"github.com/afiffaizun/todo-app-cicd/internal/repository"
 	"github.com/afiffaizun/todo-app-cicd/pkg/database"
+    "github.com/afiffaizun/todo-app-cicd/pkg/config"
+
 )
 
 func main() {
-	db := database.NewPostgresDB("localhost", "todouser", "todopass", "tododb", "5432")
-
-	// Auto migrate
+    cfg := config.LoadConfig()
+    
+    db := database.NewPostgresDB(
+        cfg.DBHost,
+        cfg.DBUser,
+        cfg.DBPassword,
+        cfg.DBName,
+        cfg.DBPort,
+    )
+    
     db.AutoMigrate(&model.Todo{})
     
-    // Setup handler
     todoRepo := repository.NewTodoRepository(db)
     todoHandler := handler.NewTodoHandler(todoRepo)
     
     r := gin.Default()
     
-    // Routes
     api := r.Group("/api/v1")
     {
         api.POST("/todos", todoHandler.CreateTodo)
@@ -28,6 +35,6 @@ func main() {
         api.PUT("/todos/:id", todoHandler.UpdateTodo)
         api.DELETE("/todos/:id", todoHandler.DeleteTodo)
     }
-
-	r.Run(":8080")
+    
+    r.Run(":" + cfg.ServerPort)
 }

@@ -1,62 +1,34 @@
-package auth
+package config
 
 import (
-	"errors"
-	"time"
-
-	"github.com/golang-jwt/jwt/v5"
+	"os"
 )
 
-type JWTClaims struct {
-	UserID uint   `json:"user_id"`
-	Email  string `json:"email"`
-	jwt.RegisteredClaims
+type Config struct {
+	DBHost     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBPort     string
+	ServerPort string
+	JWTSecret  string
 }
 
-type JWTUtil struct {
-	secretKey          string
-	expirationHours    int
-}
-
-func NewJWTUtil(secretKey string, expirationHours int) *JWTUtil {
-	return &JWTUtil{
-		secretKey:       secretKey,
-		expirationHours: expirationHours,
+func LoadConfig() *Config {
+	return &Config{
+		DBHost:     getEnv("DB_HOST", "localhost"),
+		DBUser:     getEnv("DB_USER", "todouser"),
+		DBPassword: getEnv("DB_PASSWORD", "todopass"),
+		DBName:     getEnv("DB_NAME", "tododb"),
+		DBPort:     getEnv("DB_PORT", "5432"),
+		ServerPort: getEnv("SERVER_PORT", "8080"),
+		JWTSecret:  getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 	}
 }
 
-// GenerateToken creates a new JWT token for a user
-func (j *JWTUtil) GenerateToken(userID uint, email string) (string, error) {
-	claims := JWTClaims{
-		UserID: userID,
-		Email:  email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * time.Duration(j.expirationHours))),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(j.secretKey))
-}
-
-// ValidateToken validates and parses a JWT token
-func (j *JWTUtil) ValidateToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
-		return []byte(j.secretKey), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
+	return defaultValue
 }

@@ -1,38 +1,62 @@
-package config
+package auth
 
 import (
-	"os"
-	"strconv"
-	"github.com/joho/godotenv"
+	"errors"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
-type Config struct {
-	DBHost              string
-	DBUser              string
-	DBPassword          string
-	DBName              string
-	DBPort              string
-	ServerPort          string
-	JWTSecret           string
-	JWTExpirationHours  int
+type JWTClaims struct {
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
 }
 
-func LoadConfig() *Config {
-	godotenv.Load()
-	
-	jwtExpHours, _ := strconv.Atoi(os.Getenv("JWT_EXPIRATION_HOURS"))
-	if jwtExpHours == 0 {
-		jwtExpHours = 24 // default 24 hours
+type JWTUtil struct {
+	secretKey          string
+	expirationHours    int
+}
+
+func NewJWTUtil(secretKey string, expirationHours int) *JWTUtil {
+	return &JWTUtil{
+		secretKey:       secretKey,
+		expirationHours: expirationHours,
 	}
-	
-	return &Config{
-		DBHost:             os.Getenv("DB_HOST"),
-		DBUser:             os.Getenv("DB_USER"),
-		DBPassword:         os.Getenv("DB_PASSWORD"),
-		DBName:             os.Getenv("DB_NAME"),
-		DBPort:             os.Getenv("DB_PORT"),
-		ServerPort:         os.Getenv("SERVER_PORT"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		JWTExpirationHours: jwtExpHours,
+}
+
+// GenerateToken creates a new JWT token for a user
+func (j *JWTUtil) GenerateToken(userID uint, email string) (string, error) {
+	claims := JWTClaims{
+		UserID: userID,
+		Email:  email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * time.Duration(j.expirationHours))),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
 	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(j.secretKey))
+}
+
+// ValidateToken validates and parses a JWT token
+func (j *JWTUtil) ValidateToken(tokenString string) (*JWTClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(j.secretKey), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, errors.New("invalid token")
 }
